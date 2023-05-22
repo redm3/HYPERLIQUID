@@ -1,0 +1,75 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © macmwz20
+
+
+//@version=5
+indicator('SuperTrend + MACD + EMA', overlay=true)
+
+src = close
+fast_ema = ta.ema(src, 9)
+slow_ema = ta.ema(src, 18)
+
+fast_macd = ta.ema(src, 12)
+slow_macd = ta.ema(src, 26)
+macd = fast_macd - slow_macd
+signal = ta.ema(macd, 9)
+hist = macd - signal
+
+// Volume Filter
+volume_ma = ta.sma(volume, 20)
+volume_increase = volume > volume_ma
+
+// Deternine if we are currently LONG
+isLong = false
+isLong := nz(isLong[1], false)
+
+// Determine if we are currently SHORT
+isShort = false
+isShort := nz(isShort[1], false)
+
+// Buy only if the buy signal is triggered, we are not already long, and volume is high
+LONG = not isLong and fast_ema > slow_ema and macd > signal and volume_increase
+
+// Sell only if the sell signal is triggered, we are not already short, and volume is high
+SHORT = not isShort and fast_ema < slow_ema and macd < signal and volume_increase
+
+if LONG
+    isLong := true
+    isShort := false
+    isShort
+
+if SHORT
+    isLong := false
+    isShort := true
+    isShort
+
+// Supertrend Calculation
+atr = 3 * ta.atr(10)
+longStop = hl2 - atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+shortStop = hl2 + atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+dir = 1
+dir := nz(dir[1], dir)
+dir := dir == -1 and close > shortStopPrev ? 1 : dir == 1 and close < longStopPrev ? -1 : dir
+
+
+// Line Plots
+bodyMiddle = plot((open + close) / 2, display=display.none)
+upTrend = plot(dir == 1 ? longStop : na, title='Up Trend Line', style=plot.style_linebr, linewidth=1, color=color.new(color.green, 0))
+downTrend = plot(dir != 1 ? shortStop : na, title='Down Trend Line', style=plot.style_linebr, linewidth=1, color=color.new(color.red, 0))
+
+//Fill Background
+fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false, title='Uptrend Background')
+fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false, title='Downtrend Background')
+
+//Bar Colour
+barcolor(dir == 1 and isLong ? color.green : dir != 1 and isShort ? color.red : color.blue)
+
+// Buy/Sell Label Plots
+confirmLONG = fast_ema > slow_ema and macd > signal and longStop
+confirmSHORT = fast_ema > slow_ema and macd > signal and longStop
+plotshape(not confirmLONG[1] and confirmLONG, title='Buy Label', style=shape.labelup, location=location.belowbar, size=size.normal, text='Buy', textcolor=color.new(color.white, 0), color=color.new(color.green, 0))
+plotshape(not confirmSHORT[1] and confirmSHORT, title='Sell Label', style=shape.labeldown, location=location.abovebar, size=size.normal, text='Sell', textcolor=color.new(color.white, 0), color=color.new(color.red, 0))
